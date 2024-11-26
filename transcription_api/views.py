@@ -11,6 +11,7 @@ import requests
 from django.conf import settings
 import logging
 import os
+import re
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -24,6 +25,8 @@ class TranscriptionViewSet(viewsets.ModelViewSet):
         source_id = request.data.get('source_id')
         transcription_type = request.data.get('transcription_type')
         language = request.data.get('language', 'en')
+        user_prompt = request.data.get('user_prompt', '')
+        print(f"User prompt received in transcribe: {user_prompt}")  # Debug statement
 
         if not source_id or not transcription_type:
             return Response(
@@ -70,7 +73,7 @@ class TranscriptionViewSet(viewsets.ModelViewSet):
             # Generate summary if transcription was successful
             if result.success and transcription_type != 'youtube':
                 whisper_client = WhisperTranscriptionClient()
-                summary = whisper_client._generate_summary(result)
+                summary = whisper_client._generate_summary(result, user_prompt)
                 transcription.summary = summary
                 transcription.save()
 
@@ -90,6 +93,8 @@ def test_whisper_remote(request):
     try:
         audio_url = request.data.get('audio_url')
         language = request.data.get('language', 'en')
+        user_prompt = request.data.get('user_prompt', '')
+        print(f"User prompt received in test_whisper_remote: {user_prompt}")  # Debug statement
         
         if not audio_url:
             print("Error: audio_url is required")
@@ -137,7 +142,7 @@ def test_whisper_remote(request):
         }
 
         if result.success:
-            summary = client._generate_summary(result)
+            summary = client._generate_summary(result, user_prompt)
             response_data["summary"] = summary
             print(f"Generated summary: {summary}")
 
@@ -170,6 +175,8 @@ def test_whisper_local(request):
             destination.write(chunk)
 
     try:
+        user_prompt = request.data.get('user_prompt', '')
+        print(f"User prompt received in test_whisper_local: {user_prompt}")  # Debug statement
         local_client = WhisperLocalTranscriptionClient()
         result = local_client.transcribe_local_audio(file_path)
         
@@ -191,7 +198,7 @@ def test_whisper_local(request):
 
         if result.success:
             remote_client = WhisperTranscriptionClient()
-            summary = remote_client._generate_summary(result)
+            summary = remote_client._generate_summary(result, user_prompt)
             logger.info(f"Generated summary: {summary}")  # Log the generated summary
             response_data["summary"] = summary
 
@@ -255,12 +262,22 @@ def test_whisper_local(request):
 def test_youtube(request):
     """Test YouTube Transcription"""
     print("Received request for YouTube transcription.")  # Debug statement
-    video_id = request.data.get('video_id')
+    youtube_url = request.data.get('youtube_url')  # Changed from video_id to youtube_url
+    user_prompt = request.data.get('user_prompt', '')  # Retrieve user_prompt from request data
+    print(f"User prompt received in test_youtube: {user_prompt}")  # Debug statement
     
-    if not video_id:
-        print("Error: video_id is required.")  # Debug statement
+    if not youtube_url:
+        print("Error: youtube_url is required.")  # Debug statement
         return Response(
-            {"error": "video_id is required"}, 
+            {"error": "youtube_url is required"}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # Extract video ID from the YouTube URL
+    video_id = extract_video_id(youtube_url)  # New function to extract video ID
+    if not video_id:
+        return Response(
+            {"error": "Invalid YouTube URL"}, 
             status=status.HTTP_400_BAD_REQUEST
         )
 
@@ -268,9 +285,7 @@ def test_youtube(request):
     
     # Get transcription
     print("Transcribing video...")  # Debug statement
-    result = youtube_client.transcribe_video(
-        video_id
-    )
+    result = youtube_client.transcribe_video(video_id)
     
     response_data = {
         "transcription_success": result.success,
@@ -281,12 +296,21 @@ def test_youtube(request):
 
     if result.success:
         print("Transcription successful, generating summary...")  # Debug statement
-        remote_client = WhisperTranscriptionClient()
-        summary = remote_client._generate_summary(result)
+        print(f"Result for summary generation: {result}")  # Debug statement to check result
+        print(f"User prompt for summary generation: {user_prompt}")  # Debug statement to check user prompt
+        whisper_client = WhisperTranscriptionClient()  # Instantiate the client
+        summary = whisper_client._generate_summary(result, user_prompt)  # Use the retrieved user_prompt
+        print(f"Generated summary: {summary}")  # Debug statement to check generated summary
         response_data["summary"] = summary
 
     print("Returning response data.")  # Debug statement
     return Response(response_data)
+
+def extract_video_id(url):
+    """Extract video ID from YouTube URL."""
+    # Regular expression to match YouTube video ID without look-behind
+    match = re.search(r'(?:v=|/)([a-zA-Z0-9_-]{11})', url)
+    return match.group(1) if match else None  # Return the first capturing group
 
 @api_view(['GET'])
 def test_whisper_connection(request):
@@ -325,3 +349,16 @@ def test_whisper_connection(request):
             "status": "error",
             "error": str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['POST'])
+def generate_summary(request):
+    user_prompt = request.data.get('prompt', '')
+    
+    # Assuming you have a way to get the transcription result
+    # For example, you might want to pass the transcription result from the frontend
+    transcription_result = ...  # Get the transcription result from your logic
+
+    client = WhisperTranscriptionClient()  # Or however you instantiate your client
+    summary = client._generate_summary(transcription_result, user_prompt)  # Pass the user prompt
+
+    return Response({'summary': summary})

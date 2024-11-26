@@ -7,9 +7,13 @@ import google.generativeai as genai
 import os
 import whisper
 from youtube_transcript_api import YouTubeTranscriptApi
+from dotenv import load_dotenv
 
-# Replace hardcoded API key with environment variable
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+# Load the .env file from the current directory
+load_dotenv()
+
+# Now you can access the environment variables
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 
 @dataclass
 class TimedWord:
@@ -104,7 +108,7 @@ class YouTubeTranscriptionClient:
 
 
 class WhisperLocalTranscriptionClient:
-    def __init__(self, model_size: str = "medium"):
+    def __init__(self, model_size: str = "base"):
         import torch
         
         # Determine device and precision
@@ -160,8 +164,12 @@ class WhisperLocalTranscriptionClient:
 
 class WhisperTranscriptionClient:
     def __init__(self):
-        self.base_url = os.getenv("WHISPER_BASE_URL")
-        self.auth_token = os.getenv("WHISPER_AUTH_TOKEN")
+        self.base_url =  os.getenv('WHISPER_BASE_URL')
+        
+        
+        self.auth_token = os.getenv('WHISPER_AUTH_TOKEN')
+        if not self.auth_token:
+            raise ValueError("WHISPER_AUTH_TOKEN is not set in the environment variables.")
         self.timeout = 300
         
         # Initialize Gemini only if API key is available
@@ -293,14 +301,17 @@ class WhisperTranscriptionClient:
                 error=error_msg
             )
 
-    def _generate_summary(self, result: TranscriptionResponse) -> str:
-        """Generate a summary of the transcript using Gemini"""
+    def _generate_summary(self, result: TranscriptionResponse, user_prompt: str) -> str:
+        """Generate a summary of the transcript using Gemini and user prompt"""
         if self.model is None or not result.success:
+            print("Model is not initialized or transcription was not successful.")  # Debug statement
             return ""
             
         try:
             # Retrieve the transcript from the result object
             transcript = result.transcript
+            print(f"Transcript for summary generation: {transcript}")  # Debug statement
+            print(f"User prompt for summary generation: {user_prompt}")  # Debug statement
 
             prompt = f"""Please provide a concise summary of the following transcript. 
             Focus on the main points and key messages.
@@ -308,13 +319,18 @@ class WhisperTranscriptionClient:
             Transcript:
             {transcript}
 
+            User Prompt:
+            {user_prompt}  # Use the user prompt directly
+
             Summary:"""
 
             # Generate summary using the Gemini model
             response = self.model.generate_content(prompt)
             summary = response.text.strip()
+            print(f"Generated summary: {summary}")  # Debug statement
             return summary
         except Exception as e:
+            print(f"Error during summary generation: {str(e)}")  # Debug statement
             return ""
 
 

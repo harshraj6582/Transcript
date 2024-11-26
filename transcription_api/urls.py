@@ -13,4 +13,5 @@ urlpatterns = [
     path('test/whisper-remote/', views.test_whisper_remote, name='test-whisper-remote'),
     path('test/whisper-local/', views.test_whisper_local, name='test-whisper-local'),
     path('test/youtube/', views.test_youtube, name='test-youtube'),
+    path('generate-summary/', views.generate_summary, name='generate-summary'),
 ] 

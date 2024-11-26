@@ -57,9 +57,6 @@ sqlparse==0.5.2
 sympy==1.13.1
 tiktoken==0.8.0
 tokenizers==0.20.3
-torch==2.5.1+cu118
-torchaudio==2.5.1+cu118
-torchvision==0.20.1+cu118
 tqdm==4.67.0
 transformers==4.46.3
 typing_extensions==4.12.2

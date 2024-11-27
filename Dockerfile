@@ -1,8 +1,8 @@
 # Use the official Python image from the Docker Hub
 FROM python:3.11.10-bullseye
 
-# Install Git
-RUN apt-get update && apt-get install -y git && apt-get clean
+# Install Git and ffmpeg
+RUN apt-get update && apt-get install -y git ffmpeg && apt-get clean
 
 # Set the working directory in the container
 WORKDIR /app

@@ -116,7 +116,7 @@ def test_whisper_remote(request):
             health_response = requests.get(
                 f"{client.base_url}/health",
                 timeout=30,  # Increased timeout
-                verify=getattr(settings, 'VERIFY_SSL', True)  # Add SSL verification setting
+                # verify=getattr(settings, 'VERIFY_SSL', True)  # Removed SSL verification setting
             )
             health_status = "OK" if health_response.status_code == 200 else "Failed"
             print(f"Health check status: {health_status}")
@@ -454,3 +454,7 @@ def generate_summary(request):
     summary = client._generate_summary(transcription_result, user_prompt)  # Pass the user prompt
 
     return Response({'summary': summary})
+
+
+
+

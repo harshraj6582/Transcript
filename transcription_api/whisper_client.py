@@ -6,8 +6,9 @@ import json
 import google.generativeai as genai
 import os
 import whisper
-from youtube_transcript_api import YouTubeTranscriptApi
+from pytube import YouTube  # Import pytube
 from dotenv import load_dotenv
+import re
 
 # Load the .env file from the current directory
 load_dotenv()
@@ -50,19 +51,36 @@ class YouTubeTranscriptionClient:
             preserve_formatting: Whether to keep HTML formatting like <i> and <b>
         """
         try:
-            # Get transcript from YouTube
-            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+            # Get YouTube video object
+            yt = YouTube(f'https://www.youtube.com/watch?v={video_id}')
             
-            # Try to find transcript in preferred languages
-            transcript = transcript_list.find_transcript(languages)
+            # Get available captions
+            captions = yt.captions
             
-            # Get the actual transcript data
-            transcript_data = transcript.fetch()
+            # Try to get caption in preferred language
+            caption = None
+            for lang in languages:
+                if lang in captions:
+                    caption = captions[lang]
+                    break
+            
+            if caption is None:
+                # If preferred language not found, try to get any available caption
+                if captions:
+                    caption = next(iter(captions.values()))
+                else:
+                    raise ValueError("No captions available for this video")
+            
+            # Get the transcript xml
+            transcript_xml = caption.xml_captions
+            
+            # Parse the XML to get text and timing information
+            segments = self._parse_caption_xml(transcript_xml)
             
             # Combine all text segments
-            full_transcript = ' '.join(segment['text'] for segment in transcript_data)
+            full_transcript = ' '.join(segment['text'] for segment in segments)
             
-            # Convert YouTube transcript format to TimedWord format
+            # Convert to TimedWord format
             timed_words = [
                 TimedWord(
                     word=segment['text'],
@@ -70,7 +88,7 @@ class YouTubeTranscriptionClient:
                     end=segment['start'] + segment['duration'],
                     confidence=1.0
                 )
-                for segment in transcript_data
+                for segment in segments
             ]
             
             return TranscriptionResponse(
@@ -80,6 +98,7 @@ class YouTubeTranscriptionClient:
             )
             
         except Exception as e:
+            print(f"Transcription error: {str(e)}")  # Debug log
             return TranscriptionResponse(
                 transcript="",
                 timed_words=[],
@@ -87,19 +106,41 @@ class YouTubeTranscriptionClient:
                 error=f"Error fetching YouTube transcript: {str(e)}"
             )
 
+    def _parse_caption_xml(self, xml_captions: str) -> List[Dict]:
+        """Parse the caption XML to extract text and timing information."""
+        segments = []
+        
+        # Regular expression to find text and timing information
+        pattern = r't="(\d+\.?\d*)" d="(\d+\.?\d*)"[^>]*>([^<]*)'
+        matches = re.finditer(pattern, xml_captions)
+        
+        for match in matches:
+            start = float(match.group(1))
+            duration = float(match.group(2))
+            text = match.group(3).strip()
+            
+            if text:  # Only add non-empty segments
+                segments.append({
+                    'text': text,
+                    'start': start/1000,  # Convert to seconds
+                    'duration': duration/1000  # Convert to seconds
+                })
+        
+        return segments
+
     def get_available_transcripts(self, video_id: str) -> List[Dict[str, Any]]:
         """Get metadata about available transcripts for a video."""
         try:
-            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+            yt = YouTube(f'https://www.youtube.com/watch?v={video_id}')
             available_transcripts = []
             
-            for transcript in transcript_list:
+            for caption in yt.captions:
                 available_transcripts.append({
-                    'language': transcript.language,
-                    'language_code': transcript.language_code,
-                    'is_generated': transcript.is_generated,
-                    'is_translatable': transcript.is_translatable,
-                    'translation_languages': transcript.translation_languages
+                    'language': caption.name,
+                    'language_code': caption.code,
+                    'is_generated': caption.is_generated,
+                    'is_translatable': caption.is_translatable,
+                    'translation_languages': caption.translation_languages
                 })
                 
             return available_transcripts
@@ -164,8 +205,10 @@ class WhisperLocalTranscriptionClient:
 
 class WhisperTranscriptionClient:
     def __init__(self):
-        self.base_url =  os.getenv('WHISPER_BASE_URL')
+        self.base_url = os.getenv('WHISPER_BASE_URL')
         
+        # Ensure base_url has the correct scheme
+        self.base_url = 'http://' + self.base_url  # Add http:// directly
         
         self.auth_token = os.getenv('WHISPER_AUTH_TOKEN')
         if not self.auth_token:

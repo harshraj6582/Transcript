@@ -68,3 +68,5 @@ whisper-openai==1.0.0
 whitenoise==6.8.2
 youtube-transcript-api==0.6.3
 pytube
+yt-dlp
+webvtt-py

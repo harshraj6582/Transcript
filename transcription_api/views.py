@@ -91,6 +91,7 @@ def test_whisper_remote(request):
     """Test Remote Whisper API Transcription"""
     print("Received request for remote transcription.")  # Debug statement
     try:
+        print(f"Request data: {request.data}")  # Debug statement
         audio_url = request.data.get('audio_url')
         language = request.data.get('language', 'en')
         user_prompt = request.data.get('user_prompt', '')

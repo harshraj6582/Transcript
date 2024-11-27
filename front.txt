@@ -1,0 +1,8 @@
+id = 9bbb72c565f447690033f543bc153f942cf98223155daa0a3b1356ad2ad2a43e
+
+
+          PORTS                                         NAMES
+f71bdfb665bd   backend-image    "python manage.py ru…"   13 minutes ago   Up 13 minutes   0.0.0.0:9000->8000/tcp, [::]:9000->8000/tcp   awesome_galileo
+9bbb72c565f4   frontend-image   "docker-entrypoint.s…"   18 minutes ago   Up 18 minutes   0.0.0.0:3000->3000/tcp, :::3000->3000/tcp     frontend-container
+85031bff5f9a   skylearn-lms     "python manage.py ru…"   5 weeks ago      Up 5 weeks      0.0.0.0:8000->8000/tcp, :::8000->8000/tcp     skylearn-lms-1
+da62756ef289   postgres:16      "docker-entrypoint.s…"   5 weeks ago      Up 5 weeks      0.0.0.0:5432->5432/tcp, :::5432->5432/tcp     postgres

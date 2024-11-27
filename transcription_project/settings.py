@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-iyl4u8-azab0q1p5higs_7^=z*es4ijm%!=-od$d+hxgp5@vaw
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['20.244.100.109', 'localhost', '*']
 
 
 # Application definition
@@ -43,10 +43,10 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -131,14 +131,17 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # CORS settings
-# CORS_ALLOW_ALL_ORIGINS = True  # For development only
-CORS_ORIGIN_WHITELIST = [
-     'http://localhost:3000',  # The default port for create-react-app
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
 ]
 
+# Optionally, if you want to allow all origins (not recommended for production)
+# CORS_ALLOW_ALL_ORIGINS = True
+
+
 # Add your environment variables
-import os
-GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', 'AIzaSyAoF1J0K5UosRCePJYl2uReaaT6WK8DxOY')
+
 
 # Proxy Settings (add these)
 PROXY_SETTINGS = {

@@ -301,15 +301,21 @@ class WhisperTranscriptionClient:
                 error=error_msg
             )
 
-    def _generate_summary(self, result: TranscriptionResponse, user_prompt: str) -> str:
-        """Generate a summary of the transcript using Gemini and user prompt"""
-        if self.model is None or not result.success:
-            print("Model is not initialized or transcription was not successful.")  # Debug statement
-            return ""
+    def _generate_summary(self, transcript: str, user_prompt: str) -> str:
+        """Generate a summary of the transcript using Gemini and user prompt
+        
+        Args:
+            transcript: The text transcript to summarize
+            user_prompt: User-provided context or requirements for the summary
             
+        Returns:
+            str: Generated summary or empty string if generation fails
+        """
+        if self.model is None:
+            print("Model is not initialized")  # Debug statement
+            return ""
+        
         try:
-            # Retrieve the transcript from the result object
-            transcript = result.transcript
             print(f"Transcript for summary generation: {transcript}")  # Debug statement
             print(f"User prompt for summary generation: {user_prompt}")  # Debug statement
 
@@ -320,7 +326,7 @@ class WhisperTranscriptionClient:
             {transcript}
 
             User Prompt:
-            {user_prompt}  # Use the user prompt directly
+            {user_prompt}
 
             Summary:"""
 
@@ -329,8 +335,48 @@ class WhisperTranscriptionClient:
             summary = response.text.strip()
             print(f"Generated summary: {summary}")  # Debug statement
             return summary
+            
         except Exception as e:
             print(f"Error during summary generation: {str(e)}")  # Debug statement
+            return ""
+
+    def _generate_summary_youtube(self, transcript: str, user_prompt: str) -> str:
+        """Generate a summary of the YouTube transcript using Gemini and user prompt
+        
+        Args:
+            transcript: The text transcript to summarize
+            user_prompt: User-provided context or requirements for the summary
+            
+        Returns:
+            str: Generated summary or empty string if generation fails
+        """
+        if self.model is None:
+            print("Model is not initialized")  # Debug statement
+            return ""
+        
+        try:
+            print(f"Transcript for YouTube summary generation: {transcript}")  # Debug statement
+            print(f"User prompt for YouTube summary generation: {user_prompt}")  # Debug statement
+
+            prompt = f"""Please provide a concise summary of the following YouTube transcript. 
+            Focus on the main points and key messages.
+
+            Transcript:
+            {transcript}
+
+            User Prompt:
+            {user_prompt}
+
+            Summary:"""
+
+            # Generate summary using the Gemini model
+            response = self.model.generate_content(prompt)
+            summary = response.text.strip()
+            print(f"Generated YouTube summary: {summary}")  # Debug statement
+            return summary
+            
+        except Exception as e:
+            print(f"Error during YouTube summary generation: {str(e)}")  # Debug statement
             return ""
 
 
@@ -350,7 +396,7 @@ def test_transcription():
             print(f"Transcript: {result.transcript}")
             
             # Generate and print summary
-            summary = client._generate_summary(result)
+            summary = client._generate_summary(result.transcript)
             if summary:
                 print("\nSummary:")
                 print(summary)
@@ -380,7 +426,7 @@ if __name__ == "__main__":
     if result.success:
         print("Remote transcription successful!")
         print(f"Transcript: {result.transcript}")
-        summary = client._generate_summary(result)
+        summary = client._generate_summary(result.transcript)
         if summary:
             print("\nSummary:")
             print(summary)
@@ -398,7 +444,7 @@ if __name__ == "__main__":
         print("Local transcription successful!")
         print(f"Transcript: {result.transcript}")
         # Use the remote client's Gemini integration for summary
-        summary = client._generate_summary(result)
+        summary = client._generate_summary(result.transcript)
         if summary:
             print("\nSummary:")
             print(summary)
@@ -421,7 +467,7 @@ if __name__ == "__main__":
         print("\nYouTube transcription successful!")
         print(f"Transcript: {result.transcript}")
         # Use the remote client's Gemini integration for summary
-        summary = client._generate_summary(result)
+        summary = client._generate_summary_youtube(result.transcript)
         if summary:
             print("\nSummary:")
             print(summary)

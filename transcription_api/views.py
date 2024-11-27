@@ -12,6 +12,10 @@ from django.conf import settings
 import logging
 import os
 import re
+from pytube import YouTube
+from rest_framework.response import Response
+from rest_framework import status
+import re
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -260,13 +264,68 @@ def test_whisper_local(request):
 #     return Response(response_data)
 
 @api_view(['POST'])
+# def test_youtube(request):
+#     """Test YouTube Transcription"""
+#     print("Received request for YouTube transcription.")  # Debug statement
+#     youtube_url = request.data.get('youtube_url')  # Changed from video_id to youtube_url
+#     user_prompt = request.data.get('user_prompt', '')  # Retrieve user_prompt from request data
+#     print(f"User prompt received in test_youtube: {user_prompt}")  # Debug statement
+    
+#     if not youtube_url:
+#         print("Error: youtube_url is required.")  # Debug statement
+#         return Response(
+#             {"error": "youtube_url is required"}, 
+#             status=status.HTTP_400_BAD_REQUEST
+#         )
+
+#     # Extract video ID from the YouTube URL
+#     video_id = extract_video_id(youtube_url)  # New function to extract video ID
+#     if not video_id:
+#         return Response(
+#             {"error": "Invalid YouTube URL"}, 
+#             status=status.HTTP_400_BAD_REQUEST
+#         )
+
+#     youtube_client = YouTubeTranscriptionClient()
+    
+#     # Get transcription
+#     print("Transcribing video...")  # Debug statement
+#     result = youtube_client.transcribe_video(video_id)
+    
+#     response_data = {
+#         "transcription_success": result.success,
+#         "transcript": result.transcript if result.success else None,
+#         "error": result.error if not result.success else None,
+#         "summary": None
+#     }
+
+#     if result.success:
+#         print("Transcription successful, generating summary...")  # Debug statement
+#         print(f"Result for summary generation: {result}")  # Debug statement to check result
+#         print(f"User prompt for summary generation: {user_prompt}")  # Debug statement to check user prompt
+#         whisper_client = WhisperTranscriptionClient()  # Instantiate the client
+#         summary = whisper_client._generate_summary(result, user_prompt)  # Use the retrieved user_prompt
+#         print(f"Generated summary: {summary}")  # Debug statement to check generated summary
+#         response_data["summary"] = summary
+
+#     print("Returning response data.")  # Debug statement
+#     return Response(response_data)
+
+# def extract_video_id(url):
+#     """Extract video ID from YouTube URL."""
+#     # Regular expression to match YouTube video ID without look-behind
+#     match = re.search(r'(?:v=|/)([a-zA-Z0-9_-]{11})', url)
+#     return match.group(1) if match else None  # Return the first capturing group
+
+
+
 def test_youtube(request):
-    """Test YouTube Transcription"""
+    """Test YouTube Transcription."""
     print("Received request for YouTube transcription.")  # Debug statement
     youtube_url = request.data.get('youtube_url')  # Changed from video_id to youtube_url
     user_prompt = request.data.get('user_prompt', '')  # Retrieve user_prompt from request data
     print(f"User prompt received in test_youtube: {user_prompt}")  # Debug statement
-    
+
     if not youtube_url:
         print("Error: youtube_url is required.")  # Debug statement
         return Response(
@@ -275,19 +334,37 @@ def test_youtube(request):
         )
 
     # Extract video ID from the YouTube URL
-    video_id = extract_video_id(youtube_url)  # New function to extract video ID
-    if not video_id:
+    try:
+        video_id = extract_video_id(youtube_url)
+    except ValueError as e:
+        print(f"Error extracting video ID: {e}")  # Debug statement
         return Response(
             {"error": "Invalid YouTube URL"}, 
             status=status.HTTP_400_BAD_REQUEST
         )
 
     youtube_client = YouTubeTranscriptionClient()
-    
+
     # Get transcription
     print("Transcribing video...")  # Debug statement
     result = youtube_client.transcribe_video(video_id)
-    
+
+    # Check if result is valid
+    if isinstance(result, str):  # If result is a string, it indicates an error
+        print(f"Transcription error: {result}")  # Debug statement
+        return Response(
+            {"error": result}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # Ensure result is an object with expected attributes
+    if not hasattr(result, 'success') or not hasattr(result, 'transcript'):
+        print(f"Unexpected result format: {result}")  # Debug statement
+        return Response(
+            {"error": "Unexpected result format from transcription service."}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
     response_data = {
         "transcription_success": result.success,
         "transcript": result.transcript if result.success else None,
@@ -297,21 +374,35 @@ def test_youtube(request):
 
     if result.success:
         print("Transcription successful, generating summary...")  # Debug statement
-        print(f"Result for summary generation: {result}")  # Debug statement to check result
-        print(f"User prompt for summary generation: {user_prompt}")  # Debug statement to check user prompt
         whisper_client = WhisperTranscriptionClient()  # Instantiate the client
-        summary = whisper_client._generate_summary(result, user_prompt)  # Use the retrieved user_prompt
-        print(f"Generated summary: {summary}")  # Debug statement to check generated summary
-        response_data["summary"] = summary
+        try:
+            # Debug statement to log the type and content of result
+            print(f"Result type: {type(result)}, Result content: {result}")  # Debug statement
+            
+            # Check if result has the expected attributes
+            if hasattr(result, 'transcript'):
+                print(f"Transcript: {result.transcript}")  # Debug statement
+            else:
+                print("Error: 'result' does not have a 'transcript' attribute.")  # Debug statement
+            
+            # Ensure result.transcript is valid before generating summary
+            summary = whisper_client._generate_summary(result.transcript, user_prompt)  # Use the retrieved user_prompt
+            response_data["summary"] = summary
+        except Exception as e:
+            print(f"Error generating summary: {e}")  # Debug statement
+            response_data["summary_error"] = str(e)
 
     print("Returning response data.")  # Debug statement
     return Response(response_data)
 
+
 def extract_video_id(url):
     """Extract video ID from YouTube URL."""
-    # Regular expression to match YouTube video ID without look-behind
     match = re.search(r'(?:v=|/)([a-zA-Z0-9_-]{11})', url)
-    return match.group(1) if match else None  # Return the first capturing group
+    if match:
+        return match.group(1)
+    raise ValueError("Invalid YouTube URL format.")
+
 
 @api_view(['GET'])
 def test_whisper_connection(request):

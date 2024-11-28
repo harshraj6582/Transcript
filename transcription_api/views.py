@@ -16,9 +16,7 @@ from pytube import YouTube
 from rest_framework.response import Response
 from rest_framework import status
 import re
-import openai
-import yt_dlp
-from googleapiclient.discovery import build
+
 
 
 
@@ -339,10 +337,11 @@ def test_whisper_local(request):
 
 
 
-# Function to clean the transcript by removing timestamps
+# Function to clean the transcript by removing timestamps and newline characters
 def clean_transcript(transcript):
-    """Remove timestamps from the transcript."""
+    """Remove timestamps and newline characters from the transcript."""
     cleaned_transcript = re.sub(r'\[.*?\]', '', transcript)  # Regex to remove timestamps
+    cleaned_transcript = cleaned_transcript.replace('\n', '')  # Remove newline characters
     return cleaned_transcript.strip()
 
 @api_view(['POST'])
@@ -373,7 +372,7 @@ def test_youtube(request):
         # Step 3: Store the original transcript in a different variable
         original_transcript = transcript
 
-        # Step 4: Apply regex to remove timestamps
+        # Step 4: Apply regex to remove timestamps and newline characters
         cleaned_transcript = clean_transcript(original_transcript)
 
         response_data = {

@@ -16,6 +16,11 @@ from pytube import YouTube
 from rest_framework.response import Response
 from rest_framework import status
 import re
+import openai
+import yt_dlp
+from googleapiclient.discovery import build
+
+
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -263,14 +268,14 @@ def test_whisper_local(request):
 
 #     return Response(response_data)
 
-@api_view(['POST'])
+# @api_view(['POST'])
 # def test_youtube(request):
-#     """Test YouTube Transcription"""
+#     """Test YouTube Transcription using the DigiCord API."""
 #     print("Received request for YouTube transcription.")  # Debug statement
-#     youtube_url = request.data.get('youtube_url')  # Changed from video_id to youtube_url
-#     user_prompt = request.data.get('user_prompt', '')  # Retrieve user_prompt from request data
+#     youtube_url = request.data.get('youtube_url')
+#     user_prompt = request.data.get('user_prompt', '')
 #     print(f"User prompt received in test_youtube: {user_prompt}")  # Debug statement
-    
+
 #     if not youtube_url:
 #         print("Error: youtube_url is required.")  # Debug statement
 #         return Response(
@@ -278,52 +283,74 @@ def test_whisper_local(request):
 #             status=status.HTTP_400_BAD_REQUEST
 #         )
 
-#     # Extract video ID from the YouTube URL
-#     video_id = extract_video_id(youtube_url)  # New function to extract video ID
-#     if not video_id:
+#     try:
+#         # Step 1: Extract video ID
+#         print("Extracting video ID from URL...")
+#         video_id = extract_video_id(youtube_url)
+#         print(f"Video ID: {video_id}")
+
+#         # Step 2: Retrieve transcript using DigiCord API
+#         print("Retrieving transcript...")
+#         transcript = retrieve_transcript(video_id)
+
+#         response_data = {
+#             "transcription_success": True,
+#             "transcript": transcript,
+#             "error": None,
+#             "summary": None
+#         }
+
+#         # Optionally generate a summary if needed
+#         if user_prompt:
+#             whisper_client = WhisperTranscriptionClient()  # Instantiate your summary client
+#             summary = whisper_client._generate_summary(transcript, user_prompt)
+#             response_data["summary"] = summary
+
+#         print("Returning response data.")  # Debug statement
+#         return Response(response_data)
+
+#     except Exception as e:
+#         print(f"Error in test_youtube: {e}")  # Debug statement
 #         return Response(
-#             {"error": "Invalid YouTube URL"}, 
-#             status=status.HTTP_400_BAD_REQUEST
+#             {"error": f"An error occurred: {str(e)}"}, 
+#             status=status.HTTP_500_INTERNAL_SERVER_ERROR
 #         )
-
-#     youtube_client = YouTubeTranscriptionClient()
-    
-#     # Get transcription
-#     print("Transcribing video...")  # Debug statement
-#     result = youtube_client.transcribe_video(video_id)
-    
-#     response_data = {
-#         "transcription_success": result.success,
-#         "transcript": result.transcript if result.success else None,
-#         "error": result.error if not result.success else None,
-#         "summary": None
-#     }
-
-#     if result.success:
-#         print("Transcription successful, generating summary...")  # Debug statement
-#         print(f"Result for summary generation: {result}")  # Debug statement to check result
-#         print(f"User prompt for summary generation: {user_prompt}")  # Debug statement to check user prompt
-#         whisper_client = WhisperTranscriptionClient()  # Instantiate the client
-#         summary = whisper_client._generate_summary(result, user_prompt)  # Use the retrieved user_prompt
-#         print(f"Generated summary: {summary}")  # Debug statement to check generated summary
-#         response_data["summary"] = summary
-
-#     print("Returning response data.")  # Debug statement
-#     return Response(response_data)
 
 # def extract_video_id(url):
 #     """Extract video ID from YouTube URL."""
-#     # Regular expression to match YouTube video ID without look-behind
 #     match = re.search(r'(?:v=|/)([a-zA-Z0-9_-]{11})', url)
-#     return match.group(1) if match else None  # Return the first capturing group
+#     if match:
+#         return match.group(1)
+#     raise ValueError("Invalid YouTube URL format.")
+
+# def retrieve_transcript(video_id):
+#     """Retrieve transcript using DigiCord API."""
+#     api_url = f"https://app.digicord.site/api/v1/youtube/transcript/{video_id}"
+    
+#     # Send GET request to DigiCord API
+#     response = requests.get(api_url)
+#     data = response.json()
+
+#     if data['status'] == 0:
+#         raise Exception(f"Error retrieving transcript: {data['message']}")
+    
+#     # If the response contains the transcript, return it
+#     return data['data']['content']
 
 
 
+# Function to clean the transcript by removing timestamps
+def clean_transcript(transcript):
+    """Remove timestamps from the transcript."""
+    cleaned_transcript = re.sub(r'\[.*?\]', '', transcript)  # Regex to remove timestamps
+    return cleaned_transcript.strip()
+
+@api_view(['POST'])
 def test_youtube(request):
-    """Test YouTube Transcription."""
+    """Test YouTube Transcription using the DigiCord API."""
     print("Received request for YouTube transcription.")  # Debug statement
-    youtube_url = request.data.get('youtube_url')  # Changed from video_id to youtube_url
-    user_prompt = request.data.get('user_prompt', '')  # Retrieve user_prompt from request data
+    youtube_url = request.data.get('youtube_url')
+    user_prompt = request.data.get('user_prompt', '')
     print(f"User prompt received in test_youtube: {user_prompt}")  # Debug statement
 
     if not youtube_url:
@@ -333,68 +360,44 @@ def test_youtube(request):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    # Extract video ID from the YouTube URL
     try:
+        # Step 1: Extract video ID
+        print("Extracting video ID from URL...")
         video_id = extract_video_id(youtube_url)
-    except ValueError as e:
-        print(f"Error extracting video ID: {e}")  # Debug statement
+        print(f"Video ID: {video_id}")
+
+        # Step 2: Retrieve transcript using DigiCord API
+        print("Retrieving transcript...")
+        transcript = retrieve_transcript(video_id)
+
+        # Step 3: Store the original transcript in a different variable
+        original_transcript = transcript
+
+        # Step 4: Apply regex to remove timestamps
+        cleaned_transcript = clean_transcript(original_transcript)
+
+        response_data = {
+            "transcription_success": True,
+            "transcript": cleaned_transcript,  # Send cleaned transcript in the response
+            "error": None,
+            "summary": None
+        }
+
+        # Optionally generate a summary if needed
+        if user_prompt:
+            whisper_client = WhisperTranscriptionClient()  # Instantiate your summary client
+            summary = whisper_client._generate_summary(cleaned_transcript, user_prompt)
+            response_data["summary"] = summary
+
+        print("Returning response data.")  # Debug statement
+        return Response(response_data)
+
+    except Exception as e:
+        print(f"Error in test_youtube: {e}")  # Debug statement
         return Response(
-            {"error": "Invalid YouTube URL"}, 
-            status=status.HTTP_400_BAD_REQUEST
-        )
-
-    youtube_client = YouTubeTranscriptionClient()
-
-    # Get transcription
-    print("Transcribing video...")  # Debug statement
-    result = youtube_client.transcribe_video(video_id)
-
-    # Check if result is valid
-    if isinstance(result, str):  # If result is a string, it indicates an error
-        print(f"Transcription error: {result}")  # Debug statement
-        return Response(
-            {"error": result}, 
-            status=status.HTTP_400_BAD_REQUEST
-        )
-
-    # Ensure result is an object with expected attributes
-    if not hasattr(result, 'success') or not hasattr(result, 'transcript'):
-        print(f"Unexpected result format: {result}")  # Debug statement
-        return Response(
-            {"error": "Unexpected result format from transcription service."}, 
+            {"error": f"An error occurred: {str(e)}"}, 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
-
-    response_data = {
-        "transcription_success": result.success,
-        "transcript": result.transcript if result.success else None,
-        "error": result.error if not result.success else None,
-        "summary": None
-    }
-
-    if result.success:
-        print("Transcription successful, generating summary...")  # Debug statement
-        whisper_client = WhisperTranscriptionClient()  # Instantiate the client
-        try:
-            # Debug statement to log the type and content of result
-            print(f"Result type: {type(result)}, Result content: {result}")  # Debug statement
-            
-            # Check if result has the expected attributes
-            if hasattr(result, 'transcript'):
-                print(f"Transcript: {result.transcript}")  # Debug statement
-            else:
-                print("Error: 'result' does not have a 'transcript' attribute.")  # Debug statement
-            
-            # Ensure result.transcript is valid before generating summary
-            summary = whisper_client._generate_summary(result.transcript, user_prompt)  # Use the retrieved user_prompt
-            response_data["summary"] = summary
-        except Exception as e:
-            print(f"Error generating summary: {e}")  # Debug statement
-            response_data["summary_error"] = str(e)
-
-    print("Returning response data.")  # Debug statement
-    return Response(response_data)
-
 
 def extract_video_id(url):
     """Extract video ID from YouTube URL."""
@@ -402,6 +405,22 @@ def extract_video_id(url):
     if match:
         return match.group(1)
     raise ValueError("Invalid YouTube URL format.")
+
+def retrieve_transcript(video_id):
+    """Retrieve transcript using DigiCord API."""
+    api_url = f"https://app.digicord.site/api/v1/youtube/transcript/{video_id}"
+    
+    # Send GET request to DigiCord API
+    response = requests.get(api_url)
+    data = response.json()
+
+    if data['status'] == 0:
+        raise Exception(f"Error retrieving transcript: {data['message']}")
+    
+    # If the response contains the transcript, return it
+    return data['data']['content']
+
+
 
 
 @api_view(['GET'])
